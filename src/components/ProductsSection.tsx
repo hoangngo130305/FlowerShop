@@ -204,9 +204,7 @@ export default function ProductsSection({
                 <div key={product.id}>
                   <Card
                     className={`group overflow-hidden transition-all duration-300 ${
-                      product.featured
-                        ? "ring-2 ring-primary/50 shadow-xl"
-                        : "hover:shadow-lg"
+                      product.featured ? " shadow-xl" : "hover:shadow-lg"
                     }`}
                   >
                     <div className="aspect-square sm:aspect-video overflow-hidden relative">
