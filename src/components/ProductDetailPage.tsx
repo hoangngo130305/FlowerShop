@@ -12,14 +12,18 @@ import {
   Camera,
   Trash2,
   Phone,
+  ShoppingCart,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReviewForm from "./ReviewForm";
 import { toast } from "sonner";
-import { Toaster } from "./ui/sonner";
 import { SharedFooter } from "./SharedFooter";
 import { SharedHeader } from "./SharedHeader";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
 interface ProductDetailPageProps {
   selectedProduct: any;
@@ -61,16 +65,18 @@ export default function ProductDetailPage({
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = "http://14.224.210.210:8000/api";
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
-  const [expandedReviews, setExpandedReviews] = useState<Set<number>>(
-    new Set()
-  );
+  const [expandedReviews, setExpandedReviews] = useState<Set<number>>(new Set());
   const [showReviewForm, setShowReviewForm] = useState(false);
-  const [quantity, setQuantity] = useState(1); // ← STATE SỐ LƯỢNG
+  const [quantity, setQuantity] = useState(1);
   const currentUserName = "Khách hàng";
+
+  // ==================== POPUP STATES ====================
+  const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const currentImageIndex = productImageIndex;
@@ -88,11 +94,12 @@ export default function ProductDetailPage({
   const [relatedProductIndex, setRelatedProductIndex] = useState(0);
 
   // ==================== COMPUTED VALUES (SAU KHI CÓ DATA) ====================
-  // Chỉ lấy media của sản phẩm hiện tại (ảnh và video)
   const productImages =
-    product?.media
-      ?.map((m: any) => m.Url)
-      ?.filter((url: string) => !!url) || [];
+    product?.Media && Array.isArray(product.Media)
+      ? product.Media.map((m: any) => m.url).filter((url: string) => !!url)
+      : product?.media && Array.isArray(product.media)
+      ? product.media.map((m: any) => m.Url || m.url).filter((url: string) => !!url)
+      : [];
 
   // ==================== FETCH DATA ====================
   useEffect(() => {
@@ -111,8 +118,7 @@ export default function ProductDetailPage({
 
         if (!productRes.ok) throw new Error(`Product: ${productRes.status}`);
         if (!reviewsRes.ok) throw new Error(`Reviews: ${reviewsRes.status}`);
-        if (!allProductsRes.ok)
-          throw new Error(`All: ${allProductsRes.status}`);
+        if (!allProductsRes.ok) throw new Error(`All: ${allProductsRes.status}`);
 
         const [productData, reviewsData, allProducts] = await Promise.all([
           productRes.json(),
@@ -127,7 +133,10 @@ export default function ProductDetailPage({
         setProduct(productData);
         setReviews(reviewsData);
         setRelatedProducts(related);
-        console.log("Tải dữ liệu thành công!");
+        console.log("✅ Product loaded:", productData);
+        console.log("📸 Media:", productData.Media);
+        console.log("🌍 Origin:", productData.Origin);
+        console.log("⏰ FreshDuration:", productData.FreshDuration);
       } catch (err: any) {
         console.error("Lỗi fetch:", err);
         toast.error(err.message || "Không thể tải sản phẩm");
@@ -173,10 +182,7 @@ export default function ProductDetailPage({
 
   // ==================== VIDEO AUTOPLAY ====================
   useEffect(() => {
-    if (
-      productImages[currentImageIndex]?.endsWith(".mp4") &&
-      videoRef.current
-    ) {
+    if (productImages[currentImageIndex]?.endsWith(".mp4") && videoRef.current) {
       videoRef.current.play().catch(() => {});
     }
   }, [currentImageIndex, productImages]);
@@ -219,12 +225,12 @@ export default function ProductDetailPage({
   // ==================== HANDLERS ====================
   const handleBackToProducts = onBack;
   const handlePhoneCall = () => {
-    window.location.href = "tel:0822 774 784";
+    window.location.href = "tel:0822774784";
   };
   const handleProductClick = (clickedProduct: any) =>
     onProductClick?.(clickedProduct);
   const handleNewsClick = (newsId: string | number) => {
-    onNewsClick?.(Number(newsId)); // ép về number để tương thích với App.tsx
+    onNewsClick?.(Number(newsId));
   };
 
   const toggleReviewExpansion = (id: number) => {
@@ -267,86 +273,97 @@ export default function ProductDetailPage({
   };
 
   // ==================== QUANTITY HANDLERS ====================
-  const handleIncreaseQuantity = () => {
-    setQuantity((prev) => prev + 1);
+  const increaseQuantity = () => {
+    setQuantity((prev) => Math.min(prev + 1, product?.stock || 999));
   };
 
-  const handleDecreaseQuantity = () => {
-    setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+  const decreaseQuantity = () => {
+    setQuantity((prev) => Math.max(1, prev - 1));
   };
 
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value) || 1;
-    setQuantity(value > 0 ? value : 1);
-  };
+  // ==================== ORDER SUBMIT HANDLER ====================
+  const handleOrderSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-  // ==================== ĐẶT HÀNG TRỰC TIẾP ====================
-const handleOrderNow = async () => {
-  const unitPrice = Number(product.Price) || 0;
-  const totalPrice = unitPrice * quantity;
-  const formattedTotal = new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(totalPrice);
+    const formData = new FormData(e.currentTarget);
+    const unitPrice = Number(product.Price) || 0;
+    const totalPrice = unitPrice * quantity;
 
-  // Hiển thị toast thành công trước
-  toast.success(
-    <div className="space-y-2">
-      <p className="font-bold text-base">Đặt hàng thành công!</p>
-      <div className="text-sm space-y-1">
-        <p><span className="font-semibold">{product.Name}</span> × {quantity}</p>
-        <p>Đơn giá: <span className="font-medium">{unitPrice.toLocaleString("vi-VN")}đ</span></p>
-        <p className="border-t pt-1 mt-1">
-          Tổng cộng: <span className="font-bold text-primary text-base">{formattedTotal}</span>
-        </p>
-      </div>
-      <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
-        Chúng tôi sẽ liên hệ bạn sớm nhất!
-      </p>
-    </div>,
-    { duration: 6000 }
-  );
+    const orderData = {
+      CustomerName: formData.get('name') as string,
+      Phone: formData.get('phone') as string,
+      Email: formData.get('email') as string || '',
+      Address: formData.get('address') as string,
+      Message: formData.get('message') as string || '',
+      Quantity: quantity,
+      OrderDate: new Date().toISOString(),
+      Product: product.ProductID,
+      TotalPrice: totalPrice,
+    };
 
-  // ĐÚNG FORMAT THEO BACKEND
-  const order = {
-    CustomerName: "Khách hàng",
-    Phone: "0822774784",
-    Email: "example@gmail.com",
-    Quantity: quantity,
-    OrderDate: new Date().toISOString(),  // ← đúng tên
-    Product: product.ProductID,           // ← đúng tên, đúng giá trị
-    // Không gửi TotalPrice nếu backend không cần
-  };
+    try {
+      const response = await fetch(`${API_BASE}/orders/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
+      });
 
-  console.log("Gửi đơn hàng:", order); // DEBUG
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Lỗi server:", errorData);
+        throw new Error(`Lỗi ${response.status}`);
+      }
 
-  try {
-    const response = await fetch(`${API_BASE}/orders/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(order),
-    });
+      const savedOrder = await response.json();
+      console.log("Đơn hàng lưu thành công:", savedOrder);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("Lỗi server:", errorData);
-      throw new Error(`Lỗi ${response.status}: ${JSON.stringify(errorData)}`);
+      // Hiển thị toast thành công
+      toast.success(
+        <div className="space-y-2">
+          <p className="font-bold text-base">Đặt hàng thành công! 🎉</p>
+          <div className="text-sm space-y-1">
+            <p><span className="font-semibold">{product.Name}</span> × {quantity}</p>
+            <p>Khách hàng: <span className="font-medium">{orderData.CustomerName}</span></p>
+            <p>SĐT: <span className="font-medium">{orderData.Phone}</span></p>
+            <p className="border-t pt-1 mt-1">
+              Tổng cộng: <span className="font-bold text-primary text-base">
+                {new Intl.NumberFormat("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(totalPrice)}
+              </span>
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+            Chúng tôi sẽ liên hệ bạn sớm nhất!
+          </p>
+        </div>,
+        { duration: 6000 }
+      );
+
+      // Đóng dialog và reset form
+      setIsOrderDialogOpen(false);
+      setQuantity(1);
+      
+      // Lưu vào localStorage để backup
+      const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]");
+      localStorage.setItem("orders", JSON.stringify([orderData, ...existingOrders]));
+
+    } catch (error: any) {
+      console.error("Lỗi khi lưu đơn hàng:", error);
+      toast.error("Không thể gửi đơn hàng. Vui lòng thử lại!");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    const savedOrder = await response.json();
-    console.log("Đơn hàng lưu thành công:", savedOrder);
-
-    // Lưu localStorage
-    const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-    localStorage.setItem("orders", JSON.stringify([order, ...existingOrders]));
-  } catch (error: any) {
-    console.error("Lỗi khi lưu đơn hàng:", error);
-    toast.error("Không thể lưu đơn hàng lên máy chủ.");
-  }
-};
-
+  // ==================== ĐẶT HÀNG NHANH (MỞ POPUP) ====================
+  const handleOrderNow = () => {
+    setIsOrderDialogOpen(true);
+  };
 
   // ==================== RENDER ====================
   return (
@@ -523,7 +540,6 @@ const handleOrderNow = async () => {
                             playsInline
                             className="w-full h-full object-cover"
                           />
-                          {/* Play icon overlay for video */}
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="w-10 h-10 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
                               <div className="w-0 h-0 border-l-[10px] border-l-white border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent ml-1"></div>
@@ -538,15 +554,12 @@ const handleOrderNow = async () => {
                         />
                       )}
 
-                      {/* Image/Video number indicator */}
                       <div className="absolute bottom-1 left-1 w-4 h-4 bg-black/70 text-white text-xs rounded-full flex items-center justify-center font-bold">
                         {index + 1}
                       </div>
 
-                      {/* Hover overlay */}
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-200 rounded-lg"></div>
 
-                      {/* Active indicator overlay */}
                       {currentImageIndex === index && (
                         <motion.div
                           className="absolute inset-0 bg-primary/10 rounded-lg"
@@ -556,7 +569,6 @@ const handleOrderNow = async () => {
                         />
                       )}
 
-                      {/* Check mark for active image/video */}
                       {currentImageIndex === index && (
                         <motion.div
                           className="absolute top-1 right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-lg"
@@ -576,12 +588,8 @@ const handleOrderNow = async () => {
               <div className="text-center mt-3">
                 <p className="text-xs text-muted-foreground">
                   Click vào ảnh/video nhỏ để xem chi tiết •{" "}
-                  {productImages.filter((img: string) => !img?.endsWith(".mp4"))
-                    .length}{" "}
-                  ảnh,{" "}
-                  {productImages.filter((img: string) => img?.endsWith(".mp4"))
-                    .length}{" "}
-                  video
+                  {productImages.filter((img: string) => !img?.endsWith(".mp4")).length} ảnh,{" "}
+                  {productImages.filter((img: string) => img?.endsWith(".mp4")).length} video
                 </p>
               </div>
             </div>
@@ -632,10 +640,8 @@ const handleOrderNow = async () => {
                         className="h-auto p-0 text-primary hover:text-primary/80"
                         onClick={() => {
                           const message = `Tôi muốn tư vấn giá sỉ cho ${product.Name}. Vui lòng liên hệ.`;
-                          const whatsappUrl = `https://wa.me/84123456789?text=${encodeURIComponent(
-                            message
-                          )}`;
-                          const zaloUrl = `https://zalo.me/84123456789`;
+                          const whatsappUrl = `https://wa.me/84822774784?text=${encodeURIComponent(message)}`;
+                          const zaloUrl = `https://zalo.me/84822774784`;
 
                           if (
                             confirm(
@@ -672,15 +678,15 @@ const handleOrderNow = async () => {
               <div className="mb-6">
                 <h3 className="text-lg font-bold mb-3">Mô tả sản phẩm</h3>
                 <p className="text-muted-foreground leading-relaxed mb-4">
-                  {product.Description}. Hoa sen tươi được chọn lọc kỹ càng từ
-                  vùng trồng nổi tiếng, đảm bảo chất lượng cao nhất với độ tươi
-                  lâu bền.
+                  {product.Description || 'Hoa sen tươi được chọn lọc kỹ càng từ vùng trồng nổi tiếng, đảm bảo chất lượng cao nhất.'}
                 </p>
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-sm">Tươi lâu 5-7 ngày</span>
+                    <span className="text-sm">
+                      Tươi lâu {product.FreshDuration || '5-7 ngày'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-5 h-5 text-green-500" />
@@ -697,7 +703,7 @@ const handleOrderNow = async () => {
                 </div>
               </div>
 
-              {/* Quantity & Actions - ĐÃ CẬP NHẬT */}
+              {/* Quantity & Actions */}
               <div className="mb-6">
                 <div className="mb-4">
                   <label className="text-sm font-medium mb-2 block">
@@ -709,7 +715,7 @@ const handleOrderNow = async () => {
                         variant="ghost"
                         size="sm"
                         className="h-10 w-10 p-0 hover:bg-primary/10 transition-colors"
-                        onClick={handleDecreaseQuantity}
+                        onClick={decreaseQuantity}
                         disabled={quantity <= 1}
                       >
                         -
@@ -717,8 +723,13 @@ const handleOrderNow = async () => {
                       <input
                         type="number"
                         value={quantity}
-                        onChange={handleQuantityChange}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          const maxStock = product?.stock || 999;
+                          setQuantity(Math.max(1, Math.min(val, maxStock)));
+                        }}
                         min="1"
+                        max={product?.stock || 999}
                         className="w-16 h-10 text-center border-0 bg-transparent font-semibold focus:outline-none
                                    [appearance:textfield] 
                                    [&::-webkit-outer-spin-button]:hidden 
@@ -731,7 +742,7 @@ const handleOrderNow = async () => {
                         variant="ghost"
                         size="sm"
                         className="h-10 w-10 p-0 hover:bg-primary/10 transition-colors"
-                        onClick={handleIncreaseQuantity}
+                        onClick={increaseQuantity}
                       >
                         +
                       </Button>
@@ -748,7 +759,7 @@ const handleOrderNow = async () => {
                     className="w-full bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91] text-white text-base md:text-lg h-12 shadow-md hover:shadow-lg transition-all"
                     onClick={handleOrderNow}
                   >
-                    <Heart className="w-5 h-5 mr-2" />
+                    <ShoppingCart className="w-5 h-5 mr-2" />
                     Đặt hàng ngay
                   </Button>
 
@@ -771,20 +782,14 @@ const handleOrderNow = async () => {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Xuất xứ:</span>
                     <span className="font-medium">
-                      {product.Name === "Sen" ? (
-                        <span className="text-amber-600 font-bold">
-                          Đồng Tháp Mười, Việt Nam 🌾
-                        </span>
-                      ) : (
-                        "Việt Nam"
-                      )}
+                      {product.Origin || 'Việt Nam'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
                       Thời gian tươi:
                     </span>
-                    <span className="font-medium">5-7 ngày</span>
+                    <span className="font-medium">{product.FreshDuration || '5-7 ngày'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Giao hàng:</span>
@@ -881,9 +886,7 @@ const handleOrderNow = async () => {
                                         </Badge>
                                       )}
                                     </div>
-                                    {/* Delete button */}
-                                    {review.CustomerName ===
-                                      currentUserName && (
+                                    {review.CustomerName === currentUserName && (
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -1061,7 +1064,6 @@ const handleOrderNow = async () => {
             </h2>
             <div className="max-w-6xl mx-auto px-4 md:px-6">
               <div className="relative">
-                {/* Products Container */}
                 <div className="overflow-hidden">
                   <motion.div
                     className="flex gap-3 md:gap-4"
@@ -1139,7 +1141,6 @@ const handleOrderNow = async () => {
                   </motion.div>
                 </div>
 
-                {/* Navigation Controls */}
                 {relatedProducts.length > itemsPerView && (
                   <div className="flex items-center justify-center gap-1 md:gap-3 mt-1 md:mt-4">
                     <motion.button
@@ -1204,8 +1205,176 @@ const handleOrderNow = async () => {
       {/* Footer */}
       <SharedFooter onNavigateToMain={handleBackToProducts} />
 
-      {/* Toast Notifications */}
-      <Toaster richColors position="top-right" />
+      {/* Order Dialog - POPUP ĐẶT HÀNG ĐẦY ĐỦ - Di chuyển ra ngoài section */}
+      <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
+        <DialogContent 
+          className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto"
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 9999,
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Đặt hàng: {product?.Name}</DialogTitle>
+            <DialogDescription>
+              Vui lòng điền thông tin để chúng tôi liên hệ xác nhận đơn hàng
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleOrderSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="order-name">Họ và tên *</Label>
+              <Input 
+                id="order-name" 
+                name="name" 
+                placeholder="Nguyễn Văn A" 
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-phone">Số điện thoại *</Label>
+              <Input 
+                id="order-phone" 
+                name="phone" 
+                type="tel"
+                placeholder="0901234567" 
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-email">Email</Label>
+              <Input 
+                id="order-email" 
+                name="email" 
+                type="email"
+                placeholder="email@example.com"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-address">Địa chỉ giao hàng *</Label>
+              <Input 
+                id="order-address" 
+                name="address" 
+                placeholder="Số nhà, đường, phường, quận/huyện, tỉnh/thành" 
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Quantity Selector in Dialog */}
+            <div className="space-y-2">
+              <Label htmlFor="order-quantity">Số lượng *</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center border rounded-lg">
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-10 w-10 p-0 hover:bg-primary/10"
+                    onClick={decreaseQuantity}
+                    disabled={isSubmitting || quantity <= 1}
+                  >
+                    -
+                  </Button>
+                  <input 
+                    type="number" 
+                    id="order-quantity"
+                    value={quantity} 
+                    min="1"
+                    max={product?.stock || 999}
+                    className="w-16 h-10 text-center border-0 bg-transparent font-semibold"
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      const maxStock = product?.stock || 999;
+                      setQuantity(Math.max(1, Math.min(val, maxStock)));
+                    }}
+                    disabled={isSubmitting}
+                  />
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-10 w-10 p-0 hover:bg-primary/10"
+                    onClick={increaseQuantity}
+                    disabled={isSubmitting || quantity >= (product?.stock || 999)}
+                  >
+                    +
+                  </Button>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  bông/lá (Còn: {product?.stock || 999})
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-message">Ghi chú đơn hàng</Label>
+              <Textarea 
+                id="order-message" 
+                name="message" 
+                placeholder="Thời gian giao hàng mong muốn, yêu cầu đặc biệt..."
+                rows={3}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Order Summary */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Sản phẩm:</span>
+                <span className="font-medium">{product?.Name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Số lượng:</span>
+                <span className="font-medium">{quantity} bông/lá</span>
+              </div>
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span className="text-muted-foreground">Đơn giá:</span>
+                <span className="font-medium">
+                  {Number(product?.Price)?.toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="font-semibold">Tổng tạm tính:</span>
+                <span className="font-bold text-primary">
+                  {new Intl.NumberFormat('vi-VN', {
+                    style: 'currency',
+                    currency: 'VND'
+                  }).format((Number(product?.Price) || 0) * quantity)}
+                </span>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsOrderDialogOpen(false)}
+                disabled={isSubmitting}
+              >
+                Hủy
+              </Button>
+              <Button 
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91]"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                {isSubmitting ? 'Đang xử lý...' : 'Xác nhận đặt hàng'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

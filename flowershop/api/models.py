@@ -2,7 +2,7 @@
 from django.db import models
 from django.utils.text import slugify
 from django.utils import timezone
-
+from django.contrib.auth.models import User
 
 # ==========================
 # 🔹 TAG MODEL
@@ -28,6 +28,15 @@ class Product(models.Model):
         ('Hết hàng', 'Hết hàng'),
     ]
 
+    category = models.ForeignKey(
+        'ProductCategory',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+        db_column='CategoryID'  # <-- thêm dòng này
+    )
+
     ProductID = models.AutoField(primary_key=True)
     Name = models.CharField(max_length=255)
     Slug = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -38,8 +47,8 @@ class Product(models.Model):
     IsFeatured = models.BooleanField(default=False)
     Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Còn hàng')
     CreatedAt = models.DateTimeField(default=timezone.now)
-
-    Tags = models.ManyToManyField(Tag, through='ProductTag', related_name='products', blank=True)
+    Media = models.JSONField(null=True, blank=True, help_text="Danh sách ảnh và video của sản phẩm")
+    Tags = models.ManyToManyField('Tag', through='ProductTag', related_name='products', blank=True)
 
     class Meta:
         db_table = 'products'
@@ -54,35 +63,7 @@ class Product(models.Model):
         super().save(*args, **kwargs)
 
 
-# ==========================
-# 🔹 PRODUCT MEDIA MODEL
-# ==========================
-class ProductMedia(models.Model):
-    MEDIA_CHOICES = [
-        ('image', 'image'),
-        ('video', 'video'),
-    ]
 
-    MediaID = models.AutoField(primary_key=True)
-
-    # 🔧 ForeignKey trỏ về Product, KHỚP VỚI CỘT ProductID trong database
-    Product = models.ForeignKey(
-        Product,
-        on_delete=models.CASCADE,
-        related_name='media',
-        db_column='ProductID'  # ✅ chỉ định tên cột thật trong DB
-    )
-
-    MediaType = models.CharField(max_length=10, choices=MEDIA_CHOICES, default='image')
-    Url = models.CharField(max_length=255, null=True, blank=True)
-    IsPrimary = models.BooleanField(default=False)
-
-    class Meta:
-        db_table = 'product_media'
-        ordering = ['-IsPrimary']
-
-    def __str__(self):
-        return f"{self.Product.Name} - {self.MediaType}"
 
 
 
@@ -146,14 +127,21 @@ class News(models.Model):
     Title = models.CharField(max_length=255)
     Slug = models.CharField(max_length=255, unique=True, null=True, blank=True)
     Content = models.TextField(null=True, blank=True)
-    Image = models.CharField(max_length=255, null=True, blank=True)
+    Image = models.FileField(upload_to='news/', null=True, blank=True)
     Category = models.CharField(max_length=100, null=True, blank=True)
     AuthorID = models.IntegerField(null=True, blank=True)   
     CreatedAt = models.DateTimeField(default=timezone.now)
     ViewCount = models.IntegerField(default=0)
     ReadingTime = models.CharField(max_length=50, null=True, blank=True)
     Tags = models.CharField(max_length=255, null=True, blank=True)
-
+    news_category = models.ForeignKey(
+    'NewsCategory',
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='articles',
+    db_column='CategoryID'
+)
     class Meta:
         db_table = 'news'
         ordering = ['-CreatedAt']
@@ -178,6 +166,15 @@ class Contact(models.Model):
     InterestedProduct = models.CharField(max_length=255, null=True, blank=True)
     Message = models.TextField(null=True, blank=True)
     CreatedAt = models.DateTimeField(default=timezone.now)
+    Status = models.CharField(   # ✅ bổ sung
+        max_length=20,
+        choices=[
+            ('new', 'Mới'),
+            ('read', 'Đã đọc'),
+            ('replied', 'Đã phản hồi'),
+        ],
+        default='new'
+    )
 
     class Meta:
         db_table = 'contacts'
@@ -185,14 +182,29 @@ class Contact(models.Model):
 
     def __str__(self):
         return f"{self.FirstName or ''} {self.LastName or ''}".strip() or "Anonymous"
+
 # ==========================
 # 🔹 ORDER MODEL
 # ==========================
 class Order(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Đang chờ'),
+        ('confirmed', 'Đã xác nhận'),
+        ('shipping', 'Đang giao'),
+        ('completed', 'Hoàn thành'),
+        ('cancelled', 'Đã hủy'),
+    ]
+
     OrderID = models.AutoField(primary_key=True)
     CustomerName = models.CharField(max_length=100)
     Phone = models.CharField(max_length=20)
     Email = models.CharField(max_length=100, null=True, blank=True)
+    CustomerAddress = models.CharField(max_length=255, null=True, blank=True)  # ✅ thêm
+    Quantity = models.IntegerField(default=1)
+    Unit = models.CharField(max_length=50, default='bó')  # ✅ thêm
+    TotalAmount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # ✅ thêm
+    Note = models.TextField(null=True, blank=True)  # ✅ thêm
+    Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')  # ✅ thêm
 
     # 🔗 Liên kết với Product
     Product = models.ForeignKey(
@@ -202,7 +214,6 @@ class Order(models.Model):
         related_name='orders'
     )
 
-    Quantity = models.IntegerField(default=1)
     OrderDate = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -210,4 +221,61 @@ class Order(models.Model):
         ordering = ['-OrderDate']
 
     def __str__(self):
-        return f"Đơn hàng #{self.OrderID} - {self.CustomerName} ({self.Product.Name})"
+        return f"Đơn #{self.OrderID} - {self.CustomerName}"
+
+
+# --- Product Categories ---
+class ProductCategory(models.Model):
+    CategoryID = models.AutoField(primary_key=True)  # ✅ trùng tên cột SQL
+    Name = models.CharField(max_length=100, unique=True)
+    Description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "product_categories"  # ✅ trùng tên bảng MySQL
+        verbose_name = "Danh mục sản phẩm"
+        verbose_name_plural = "Danh mục sản phẩm"
+
+    def __str__(self):
+        return self.Name
+
+
+
+
+# --- News Categories ---
+class NewsCategory(models.Model):
+    CategoryID = models.AutoField(primary_key=True)  # <- thêm field này
+    Name = models.CharField(max_length=100, unique=True)
+    Description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.Name
+
+    class Meta:
+        db_table = "news_categories"  # trùng với MySQL
+        verbose_name = "Danh mục bài viết"
+        verbose_name_plural = "Danh mục bài viết"
+
+
+
+# --- Admin Management ---
+class Admin(models.Model):
+    ROLE_CHOICES = [
+        ('superadmin', 'Super Admin'),
+        ('editor', 'Biên tập viên'),
+        ('viewer', 'Người xem'),
+    ]
+
+    admin_id = models.AutoField(primary_key=True, db_column='AdminID')  # <-- primary key
+    user = models.OneToOneField(User, on_delete=models.CASCADE, db_column='UserID')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='editor', db_column='Role')
+    permissions = models.TextField(blank=True, help_text="JSON hoặc danh sách quyền tùy chỉnh", db_column='Permissions')
+    last_login = models.DateTimeField(auto_now=True, db_column='LastLogin')
+
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
+
+    class Meta:
+        db_table = 'admins'
+        verbose_name = "Quản trị viên"
+        verbose_name_plural = "Quản trị viên"
+

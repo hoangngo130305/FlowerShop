@@ -11,7 +11,7 @@ import {
 import { Badge } from "./ui/badge";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { motion, AnimatePresence } from "motion/react";
-import { Package, Phone, Heart, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package, Phone, Heart, ChevronLeft, ChevronRight, Camera } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface Product {
@@ -22,15 +22,18 @@ interface Product {
   tags: string[];
   price: string;
   featured?: boolean;
+  origin?: string;
+  freshDuration?: string;
+  media?: Array<{ type: 'image' | 'video'; url: string }>;
 }
 
 interface ProductsSectionProps {
   onProductClick: (product: any) => void;
 }
 
-const API_BASE_URL = "http://localhost:8000/api"; // Thay bằng domain thật khi deploy
+const API_BASE_URL = "http://14.224.210.210:8000/apii";
 
-export default function ProductsSection({
+export default function ProductsSectionAPI({
   onProductClick,
 }: ProductsSectionProps) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -38,7 +41,7 @@ export default function ProductsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // FETCH SẢN PHẨM KHÔNG CẦN TOKEN
+  // FETCH SẢN PHẨM TỪ API
   const fetchProducts = async () => {
     setIsLoading(true);
     setError(null);
@@ -52,39 +55,66 @@ export default function ProductsSection({
       }
       const data = await res.json();
 
-      const mappedProducts: Product[] = data.map((p: any) => {
-        // 1. LẤY ẢNH CHÍNH
-        const primaryImage = p.media?.find(
-          (m: any) => m.IsPrimary && m.MediaType === "image"
-        )?.Url;
-        const fallbackImage = p.media?.find(
-          (m: any) => m.MediaType === "image"
-        )?.Url;
-        const image =
-          primaryImage ||
-          fallbackImage ||
-          "https://images.unsplash.com/photo-1659532165024-29510c914b04?w=400&q=75";
+      console.log("📦 Raw API Response:", data);
 
-        const tags = Array.isArray(p.Tags)
-          ? p.Tags.map((t: any) => t.TagName).filter(
-              (tag: string) => tag && tag.trim()
-            )
-          : [];
+      const mappedProducts: Product[] = data.map((p: any) => {
+        // ✅ 1. LẤY MEDIA (ẢNH/VIDEO) - API trả về "Media" JSONField
+        let mediaArray: Array<{ type: 'image' | 'video'; url: string }> = [];
+        let primaryImage = "";
+
+        if (p.Media && Array.isArray(p.Media)) {
+          // Django trả về Media là JSONField: [{"type": "image", "url": "/media/..."}]
+          mediaArray = p.Media.map((m: any) => ({
+            type: m.type || 'image',
+            url: m.url || ''
+          })).filter((m: any) => m.url);
+
+          // Lấy ảnh đầu tiên làm ảnh chính
+          const firstImage = mediaArray.find(m => m.type === 'image');
+          primaryImage = firstImage?.url || '';
+        }
+
+        // ✅ 2. LẤY TAGS - Ưu tiên Tags (ManyToMany), fallback Categories
+        let tags: string[] = [];
+        if (Array.isArray(p.Tags) && p.Tags.length > 0) {
+          // Tags là ManyToMany với Tag model: [{TagID, TagName}, ...]
+          tags = p.Tags.map((t: any) => 
+            typeof t === 'string' ? t : (t.TagName || '')
+          ).filter((tag: string) => tag && tag.trim());
+        } else if (Array.isArray(p.Categories) && p.Categories.length > 0) {
+          tags = p.Categories;
+        }
+
+        // ✅ 3. FORMAT GIÁ
+        const formattedPrice = Number(p.Price)?.toLocaleString('vi-VN') + 'đ';
+
+        console.log(`✅ Product "${p.Name}":`, {
+          rawMedia: p.Media,
+          mediaArray,
+          primaryImage,
+          tags,
+          price: formattedPrice,
+          origin: p.Origin,
+          freshDuration: p.FreshDuration,
+        });
 
         return {
           id: p.ProductID,
           title: p.Name,
           description: p.Description || "Hoa sen tươi chất lượng cao",
-          image,
+          image: primaryImage,
           tags,
-          price: `${Number(p.Price).toLocaleString()}đ`,
+          price: formattedPrice,
           featured: p.IsFeatured,
+          origin: p.Origin,
+          freshDuration: p.FreshDuration,
+          media: mediaArray,
         };
       });
 
       setProducts(mappedProducts);
     } catch (err: any) {
-      console.error("Lỗi fetch sản phẩm:", err);
+      console.error("❌ Lỗi fetch sản phẩm:", err);
       setError(err.message || "Đã có lỗi xảy ra");
       setProducts([]);
     } finally {
@@ -147,9 +177,15 @@ export default function ProductsSection({
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-3 md:mb-4 text-foreground">
+          <motion.h2 
+            className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-3 md:mb-4 text-foreground"
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
             Sản phẩm nổi bật
-          </h2>
+          </motion.h2>
           <p className="text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             Hoa sen tươi chất lượng cao từ vùng trồng nổi tiếng, đảm bảo độ tươi
             hoàn hảo.
@@ -167,7 +203,7 @@ export default function ProductsSection({
                 <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base">
                   <Package className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                   <span className="text-center sm:text-left">
-                    <span className="font-bold text-foreground">
+                    <span className="text-foreground">
                       Giá hiển thị là giá lẻ.
                     </span>{" "}
                     Mua số lượng lớn để nhận giá sỉ ưu đãi!
@@ -178,7 +214,7 @@ export default function ProductsSection({
                   size="sm"
                   className="whitespace-nowrap"
                   onClick={() =>
-                    window.open("https://zalo.me/84123456789", "_blank")
+                    window.open("https://zalo.me/84822774784", "_blank")
                   }
                 >
                   <Phone className="w-4 h-4 mr-2" />
@@ -201,33 +237,62 @@ export default function ProductsSection({
               className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4"
             >
               {currentProducts.map((product) => (
-                <div key={product.id}>
+                <motion.div 
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <Card
-                    className={`group overflow-hidden transition-all duration-300 ${
-                      product.featured ? " shadow-xl" : "hover:shadow-lg"
+                    className={`group overflow-hidden transition-all duration-300 h-full flex flex-col ${
+                      product.featured ? "ring-2 ring-primary shadow-xl" : "hover:shadow-lg"
                     }`}
                   >
+                    {/* ✅ IMAGE/VIDEO DISPLAY */}
                     <div className="aspect-square sm:aspect-video overflow-hidden relative">
-                      <ImageWithFallback
-                        src={product.image}
-                        alt={product.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      {/* {product.featured && (
-                        <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
-                          <Badge className="bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-lg">
-                            Special product
-                          </Badge>
-                          <Badge className="bg-green-600 text-white shadow-lg">Tự nhiên 100%</Badge>
+                      {product.image ? (
+                        <ImageWithFallback
+                          src={product.image}
+                          alt={product.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+                          <Package className="w-12 h-12 text-muted-foreground" />
                         </div>
-                      )} */}
+                      )}
+                      
+                      {/* Media badge */}
+                      {product.media && product.media.length > 0 && (
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <Badge variant="secondary" className="bg-black/70 text-white text-xs">
+                            <Camera className="w-3 h-3 mr-1" />
+                            {product.media.filter(m => m.type === 'image').length}
+                          </Badge>
+                          {product.media.some(m => m.type === 'video') && (
+                            <Badge variant="secondary" className="bg-red-600 text-white text-xs">
+                              VIDEO
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Featured badge */}
+                      {product.featured && (
+                        <div className="absolute top-2 left-2">
+                          <Badge className="bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91] text-white">
+                            Nổi bật
+                          </Badge>
+                        </div>
+                      )}
                     </div>
-                    <CardHeader className="p-3 md:p-4">
+
+                    <CardHeader className="p-3 md:p-4 flex-grow">
                       <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-base md:text-lg font-bold leading-tight">
+                        <CardTitle className="text-base md:text-lg leading-tight line-clamp-2">
                           {product.title}
                         </CardTitle>
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 text-right">
                           <div className="text-xs text-muted-foreground mb-0.5">
                             Giá lẻ
                           </div>
@@ -236,16 +301,32 @@ export default function ProductsSection({
                           </div>
                         </div>
                       </div>
-                      <CardDescription className="text-sm md:text-base leading-relaxed truncate">
+                      
+                      {/* ✅ DESCRIPTION */}
+                      <CardDescription className="text-sm md:text-base leading-relaxed line-clamp-2">
                         {product.description}
                       </CardDescription>
+
+                      {/* ✅ ADDITIONAL INFO */}
+                      {(product.origin || product.freshDuration) && (
+                        <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                          {product.origin && (
+                            <div>📍 {product.origin}</div>
+                          )}
+                          {product.freshDuration && (
+                            <div>⏰ Tươi {product.freshDuration}</div>
+                          )}
+                        </div>
+                      )}
                     </CardHeader>
+
                     <CardContent className="p-3 md:p-4 pt-0">
+                      {/* ✅ TAGS */}
                       {product.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {product.tags.map((tag) => (
+                          {product.tags.map((tag, idx) => (
                             <Badge
-                              key={tag}
+                              key={`${product.id}-tag-${idx}`}
                               variant="secondary"
                               className="text-xs py-0.5 px-1.5"
                             >
@@ -254,6 +335,8 @@ export default function ProductsSection({
                           ))}
                         </div>
                       )}
+
+                      {/* ACTIONS */}
                       <div className="space-y-2">
                         <div className="flex gap-2">
                           <Button
@@ -270,7 +353,7 @@ export default function ProductsSection({
                             className="h-9 md:h-10 px-2 md:px-3"
                             onClick={() =>
                               window.open(
-                                "https://zalo.me/84123456789",
+                                "https://zalo.me/84822774784",
                                 "_blank"
                               )
                             }
@@ -285,7 +368,7 @@ export default function ProductsSection({
                             className="text-primary cursor-pointer hover:underline"
                             onClick={() =>
                               window.open(
-                                "https://zalo.me/84123456789",
+                                "https://zalo.me/84822774784",
                                 "_blank"
                               )
                             }
@@ -296,52 +379,56 @@ export default function ProductsSection({
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </motion.div>
               ))}
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-center mt-8 md:mt-12 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Trang trước</span>
-          </Button>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center mt-8 md:mt-12 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Trang trước</span>
+            </Button>
 
-          <div className="flex items-center gap-1 md:gap-2 mx-4">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                size="sm"
-                onClick={() => handlePageChange(page)}
-                className={`w-8 h-8 p-0 ${
-                  currentPage === page
-                    ? "bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91] text-white"
-                    : "hover:bg-primary/10"
-                }`}
-              >
-                {page}
-              </Button>
-            ))}
+            <div className="flex items-center gap-1 md:gap-2 mx-4">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                (page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(page)}
+                    className={`w-8 h-8 p-0 ${
+                      currentPage === page
+                        ? "bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91] text-white"
+                        : "hover:bg-primary/10"
+                    }`}
+                  >
+                    {page}
+                  </Button>
+                )
+              )}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <span className="hidden sm:inline">Trang sau</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-          >
-            <span className="hidden sm:inline">Trang sau</span>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
+        )}
 
         <div className="text-center mt-4 text-sm text-muted-foreground">
           Hiển thị {startIndex + 1}-

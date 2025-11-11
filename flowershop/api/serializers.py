@@ -1,11 +1,13 @@
 # api/serializers.py
 from rest_framework import serializers
 from .models import (
-    Tag, Product, ProductMedia, ProductTag,
+    Tag, Product, ProductTag,
     Review, Author, News, Contact, Order
 )
-
-
+from .models import ProductCategory, NewsCategory, Admin
+from django.templatetags.static import static
+from django.conf import settings
+from urllib.parse import urljoin
 # ----------------------------
 # 🔹 TAG SERIALIZER
 # ----------------------------
@@ -15,13 +17,6 @@ class TagSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-# ----------------------------
-# 🔹 PRODUCT MEDIA SERIALIZER
-# ----------------------------
-class ProductMediaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductMedia
-        fields = '__all__'
 
 
 # ----------------------------
@@ -36,17 +31,36 @@ class ReviewSerializer(serializers.ModelSerializer):
 # ----------------------------
 # 🔹 PRODUCT SERIALIZER
 # ----------------------------
+# api/serializers.py
 class ProductSerializer(serializers.ModelSerializer):
-    media = serializers.SerializerMethodField()
-    Tags = TagSerializer(many=True, read_only=True)
+    Tags = serializers.SerializerMethodField()
+    Media = serializers.SerializerMethodField()  # ← ĐÚNG: DÙNG METHOD FIELD
 
     class Meta:
         model = Product
         fields = '__all__'
 
-    def get_media(self, obj):
-        media_qs = ProductMedia.objects.filter(Product=obj)
-        return ProductMediaSerializer(media_qs, many=True).data
+    def get_Tags(self, obj):
+        return [
+            {"TagID": t.TagID, "TagName": t.TagName}
+            for t in obj.Tags.all()
+        ]
+
+    def get_Media(self, obj):
+        request = self.context.get('request')
+        if not obj.Media:
+            return []
+
+        media_list = []
+        for item in obj.Media:
+            url = item.get("url", "")
+            if request and url and not url.startswith(("http://", "https://")):
+                url = request.build_absolute_uri(url)
+            media_list.append({
+                "type": item.get("type"),
+                "url": url
+            })
+        return media_list
 
 
 # ----------------------------
@@ -75,10 +89,17 @@ class AuthorSerializer(serializers.ModelSerializer):
 # ----------------------------
 class NewsSerializer(serializers.ModelSerializer):
     AuthorID = AuthorSerializer(read_only=True)
+    ImageFull = serializers.SerializerMethodField()  # trả về URL đầy đủ
 
     class Meta:
         model = News
         fields = '__all__'
+
+    def get_ImageFull(self, obj):
+        request = self.context.get('request')
+        if obj.Image and hasattr(obj.Image, 'url'):
+            return request.build_absolute_uri(obj.Image.url)
+        return None
 
 
 # ----------------------------
@@ -112,4 +133,22 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
+        fields = '__all__'
+
+class ProductCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductCategory
+        fields = '__all__'
+
+class NewsCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NewsCategory
+        fields = '__all__'
+
+class AdminSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+
+    class Meta:
+        model = Admin
         fields = '__all__'

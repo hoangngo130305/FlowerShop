@@ -8,7 +8,7 @@ import { Mail, Phone, MapPin } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-const API_BASE_URL = "http://localhost:8000/api"; // Cùng với ProductsSection
+const API_BASE_URL = "http://14.224.210.210:8000/api"; // Cùng với ProductsSection
 
 export default function ContactSection() {
   const [formData, setFormData] = useState({

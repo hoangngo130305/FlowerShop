@@ -816,3 +816,29 @@ select:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+/* ===== DIALOG & ALERT DIALOG CENTER FIX ===== */
+/* Force Dialog to be centered regardless of parent container */
+[data-radix-dialog-content],
+[data-radix-alert-dialog-content] {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure Dialog overlay covers entire viewport */
+[data-radix-dialog-overlay],
+[data-radix-alert-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+}
+
+/* Dialog content above overlay */
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+  z-index: 9999 !important;
+  position: fixed !important;
+}

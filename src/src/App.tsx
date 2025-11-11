@@ -16,6 +16,9 @@ import { Toaster } from "../components/ui/sonner";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 import { Flower } from "lucide-react";
+import { DataProvider, useData } from "../components/DataContext";
+import { AdminLogin } from "../components/AdminLogin";
+import { AdminPage } from "../components/AdminPage";
 
 function AppContent() {
   const isMobile = useIsMobile();
@@ -963,7 +966,7 @@ Hoa sen - một phần không thể tách rời của văn hóa Việt Nam, vẫ
             onNewsClick={handleReadMore}
           />
           <HeroSection
-            handleBuyNow={() =>
+            onBuyNow={() =>
               document
                 .getElementById("products")
                 ?.scrollIntoView({ behavior: "smooth" })
@@ -986,7 +989,17 @@ Hoa sen - một phần không thể tách rời của văn hóa Việt Nam, vẫ
 export default function App() {
   return (
     <HelmetProvider>
-      <AppContent />
+      <DataProvider>
+        <Helmet>
+          <title>Sen Đồng Tháp - Hoa Sen Tươi Chất Lượng Cao</title>
+          <meta
+            name="description"
+            content="Chuyên cung cấp hoa sen tươi từ Đồng Tháp Mười với chất lượng cao nhất. Giao hàng nhanh chóng, giá cả hợp lý."
+          />
+        </Helmet>
+        <AppContent />
+        <Toaster />
+      </DataProvider>
     </HelmetProvider>
   );
 }

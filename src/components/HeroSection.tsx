@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HeroSectionProps {
-  handleBuyNow: () => void;
+  onBuyNow: () => void;
 }
 
-export default function HeroSection({ handleBuyNow }: HeroSectionProps) {
+export default function HeroSection({ onBuyNow }: HeroSectionProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Hero images data
@@ -38,7 +38,7 @@ export default function HeroSection({ handleBuyNow }: HeroSectionProps) {
   }, [heroImages.length]);
 
   return (
-    <section id="home" className="pt-16 sm:pt-20 md:pt-24 pb-8 sm:pb-12 md:pb-16 px-3 sm:px-4 md:px-6 relative z-10 overflow-hidden">
+    <section id="home" className="pt-24 sm:pt-28 md:pt-32 pb-8 sm:pb-12 md:pb-16 px-3 sm:px-4 md:px-6 relative z-10 overflow-hidden">
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
           {/* Hero Text */}
@@ -110,7 +110,7 @@ export default function HeroSection({ handleBuyNow }: HeroSectionProps) {
                   size="lg" 
                   className="text-base md:text-lg relative bg-gradient-to-r from-[#FF7BBF] to-[#FF4D91] text-white shadow-md hover:shadow-xl transition-all w-fit" 
                   style={{ fontFamily: 'Fraunces, serif' }}
-                  onClick={handleBuyNow}
+                  onClick={onBuyNow}
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     Mua ngay
@@ -178,9 +178,9 @@ export default function HeroSection({ handleBuyNow }: HeroSectionProps) {
 
                 {/* Indicators - Hidden on mobile, visible on desktop */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden sm:flex gap-2">
-                  {heroImages.map((_, index) => (
+                  {heroImages.map((img, index) => (
                     <button
-                      key={index}
+                      key={`hero-indicator-${index}`}
                       onClick={() => setCurrentImageIndex(index)}
                       className={`rounded-full transition-all ${
                         index === currentImageIndex 
