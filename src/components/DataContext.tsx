@@ -112,7 +112,7 @@ export interface Order {
 // ✅ NEW: Transaction & Schedule types for Finance Management
 export interface Transaction {
   id: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "debt";
   category: string;
   amount: number;
   description: string;
@@ -126,6 +126,7 @@ export interface OrderSchedule {
   orderId: string;
   orderNumber: string;
   customerName: string;
+  customerAddress?: string; // ✅ MAKE OPTIONAL
   productName: string;
   scheduledDate: string;
   scheduledTime?: string;
@@ -569,18 +570,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // Handle both array and wrapped response
       const data = Array.isArray(response) ? response : (response.data || []);
 
-      const mappedSchedules: OrderSchedule[] = data.map((s: any) => ({
-        id: String(s.ScheduleID),
-        orderId: String(s.OrderID),
-        orderNumber: s.order_number || `ORD-${String(s.OrderID).padStart(5, "0")}`,
-        customerName: s.customer_name || "",
-        productName: s.product_name || "",
-        scheduledDate: s.ScheduledDate?.split('T')[0] || new Date().toISOString().split("T")[0],
-        scheduledTime: s.ScheduledTime,
-        status: s.Status?.toLowerCase() || "pending",
-        note: s.Note || "",
-        createdAt: s.CreatedAt?.split('T')[0],
-      }));
+      // ✅ DEBUG: Log raw API data
+      console.log('🔍 RAW API Response (first item):', data[0]);
+
+      const mappedSchedules: OrderSchedule[] = data.map((s: any) => {
+        // ✅ DEBUG: Log individual schedule mapping
+        if (s.ScheduleID === 12) {
+          console.log('🔍 Mapping Schedule 12:', {
+            CustomerName: s.CustomerName,
+            customer_name: s.customer_name,
+            CustomerAddress: s.CustomerAddress,
+            customer_address: s.customer_address,
+            ProductName: s.ProductName,
+            product_name: s.product_name,
+          });
+        }
+
+        return {
+          id: String(s.ScheduleID),
+          orderId: s.OrderID ? String(s.OrderID) : "",  // ✅ Handle null OrderID
+          orderNumber: s.order_number || (s.OrderID ? `ORD-${String(s.OrderID).padStart(5, "0")}` : ""),
+          // ✅ Ưu tiên field độc lập (CustomerName, CustomerAddress, ProductName)
+          // Fallback sang computed field (customer_name, customer_address, product_name)
+          customerName: s.CustomerName || s.customer_name || "",
+          customerAddress: s.CustomerAddress || s.customer_address || "",
+          productName: s.ProductName || s.product_name || "",
+          scheduledDate: s.ScheduledDate?.split('T')[0] || new Date().toISOString().split("T")[0],
+          scheduledTime: s.ScheduledTime,
+          status: s.Status?.toLowerCase() || "pending",
+          note: s.Note || "",
+          createdAt: s.CreatedAt?.split('T')[0],
+        };
+      });
 
       console.log('✅ Fetched Order Schedules:', mappedSchedules);
       setOrderSchedulesState(mappedSchedules);
@@ -1130,18 +1151,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
   
   const addOrderSchedule = async (schedule: OrderSchedule) => {
     try {
+      const bodyData: any = {
+        ScheduledDate: schedule.scheduledDate,
+        ScheduledTime: schedule.scheduledTime || null,
+        Status: schedule.status,
+        Note: schedule.note || "",
+        CustomerName: schedule.customerName,  // ✅ ADD
+        CustomerAddress: schedule.customerAddress || "",
+        ProductName: schedule.productName,  // ✅ ADD
+      };
+      
+      // ✅ OPTIONAL: Only send OrderID if it exists and is valid
+      if (schedule.orderId && !isNaN(parseInt(schedule.orderId))) {
+        bodyData.OrderID = parseInt(schedule.orderId);
+      }
+      
       const res = await fetch(`${API_BASE_URL}/order-schedules/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          OrderID: schedule.orderId,
-          ScheduledDate: schedule.scheduledDate,
-          ScheduledTime: schedule.scheduledTime,
-          Status: schedule.status,
-          Note: schedule.note,
-        }),
+        body: JSON.stringify(bodyData),
       });
-      if (!res.ok) throw new Error("Không thể thêm lịch trình đơn hàng");
+      
+      // ✅ LOG ERROR RESPONSE
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("❌ API Error Response:", errorData);
+        throw new Error(errorData.detail || JSON.stringify(errorData) || "Không thể thêm lịch trình đơn hàng");
+      }
+      
       await fetchOrderSchedules();
     } catch (err: any) {
       console.error("❌ Add Order Schedule Error:", err);
@@ -1151,18 +1188,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
   
   const updateOrderSchedule = async (id: string, schedule: Partial<OrderSchedule>) => {
     try {
+      const bodyData: any = {
+        Status: schedule.status,
+        Note: schedule.note || "",
+      };
+      
+      // Only include fields that are provided
+      if (schedule.orderId) bodyData.OrderID = parseInt(schedule.orderId);
+      if (schedule.scheduledDate) bodyData.ScheduledDate = schedule.scheduledDate;
+      if (schedule.scheduledTime !== undefined) bodyData.ScheduledTime = schedule.scheduledTime || null;
+      if (schedule.customerAddress !== undefined) bodyData.CustomerAddress = schedule.customerAddress || "";  // ✅ ADD THIS
+      
       const res = await fetch(`${API_BASE_URL}/order-schedules/${id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          OrderID: schedule.orderId,
-          ScheduledDate: schedule.scheduledDate,
-          ScheduledTime: schedule.scheduledTime,
-          Status: schedule.status,
-          Note: schedule.note,
-        }),
+        body: JSON.stringify(bodyData),
       });
-      if (!res.ok) throw new Error("Không thể cập nhật lịch trình đơn hàng");
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("❌ API Error Response:", errorData);
+        throw new Error(errorData.detail || JSON.stringify(errorData) || "Không thể cập nhật lịch trình đơn hàng");
+      }
+      
       await fetchOrderSchedules();
     } catch (err: any) {
       console.error("❌ Update Order Schedule Error:", err);

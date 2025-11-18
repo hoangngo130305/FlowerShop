@@ -180,31 +180,45 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 class OrderScheduleSerializer(serializers.ModelSerializer):
     order_number = serializers.SerializerMethodField()
-    customer_name = serializers.SerializerMethodField()
-    customer_phone = serializers.SerializerMethodField()
-    product_name = serializers.SerializerMethodField()
     total_amount = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderSchedule
         fields = [
-            'ScheduleID', 'OrderID', 'order_number', 'customer_name', 'customer_phone',
-            'product_name', 'total_amount', 'ScheduledDate', 'ScheduledTime',
-            'Status', 'Note', 'CreatedAt', 'UpdatedAt'
+            'ScheduleID', 'OrderID', 'order_number',
+
+            # Các field độc lập (do bạn đã thêm vào model)
+            'CustomerName', 'CustomerAddress', 'ProductName',
+
+            # Tự động lấy fallback từ Order nếu có
+            'customer_phone',
+            'total_amount',
+
+            'ScheduledDate', 'ScheduledTime',
+            'Status', 'Note',
+            'CreatedAt', 'UpdatedAt'
         ]
+
         read_only_fields = ['ScheduleID', 'CreatedAt', 'UpdatedAt']
 
-    def get_order_number(self, obj):
-        return f"ORD-{str(obj.OrderID.OrderID).zfill(5)}"
+        extra_kwargs = {
+            'OrderID': {'required': False, 'allow_null': True}
+        }
 
-    def get_customer_name(self, obj):
-        return obj.OrderID.CustomerName
+    # ----- METHODS -----
+
+    def get_order_number(self, obj):
+        if obj.OrderID:
+            return f"ORD-{str(obj.OrderID.OrderID).zfill(5)}"
+        return None
 
     def get_customer_phone(self, obj):
-        return obj.OrderID.Phone
-
-    def get_product_name(self, obj):
-        return obj.OrderID.Product.Name if obj.OrderID.Product else None
+        if obj.OrderID:
+            return obj.OrderID.Phone
+        return None
 
     def get_total_amount(self, obj):
-        return float(obj.OrderID.TotalAmount)
+        if obj.OrderID:
+            return float(obj.OrderID.TotalAmount)
+        return None

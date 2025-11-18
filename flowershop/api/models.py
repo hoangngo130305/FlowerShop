@@ -289,6 +289,7 @@ class Transaction(models.Model):
     TYPE_CHOICES = [
         ('income', 'Thu nhập'),
         ('expense', 'Chi phí'),
+        ('debt', 'Nợ'),
     ]
 
     TransactionID = models.AutoField(primary_key=True, db_column='TransactionID')
@@ -331,10 +332,17 @@ class OrderSchedule(models.Model):
     ScheduleID = models.AutoField(primary_key=True, db_column='ScheduleID')
     OrderID = models.ForeignKey(
         Order,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,  # ✅ CHANGE: SET_NULL instead of CASCADE
         db_column='OrderID',
-        related_name='schedules'
+        related_name='schedules',
+        null=True,  # ✅ ADD: Allow NULL
+        blank=True  # ✅ ADD: Allow empty in forms
     )
+    # ✅ NEW: Thêm các field độc lập không phụ thuộc vào Order
+    CustomerName = models.CharField(max_length=255, blank=True, null=True, db_column='CustomerName')
+    CustomerAddress = models.CharField(max_length=255, blank=True, null=True, db_column='CustomerAddress')
+    ProductName = models.CharField(max_length=255, blank=True, null=True, db_column='ProductName')
+    
     ScheduledDate = models.DateField(db_column='ScheduledDate')
     ScheduledTime = models.TimeField(null=True, blank=True, db_column='ScheduledTime')
     Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_column='Status')
@@ -352,4 +360,7 @@ class OrderSchedule(models.Model):
 
     def __str__(self):
         time = self.ScheduledTime.strftime('%H:%M') if self.ScheduledTime else ''
-        return f"ORD-{str(self.OrderID.OrderID).zfill(5)} - {self.ScheduledDate} {time}"
+        if self.OrderID:
+            return f"ORD-{str(self.OrderID.OrderID).zfill(5)} - {self.ScheduledDate} {time}"
+        else:
+            return f"{self.CustomerName or 'Lịch'} - {self.ScheduledDate} {time}"
