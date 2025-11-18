@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 11, 2025 at 02:12 PM
+-- Generation Time: Nov 18, 2025 at 03:20 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -235,7 +235,6 @@ CREATE TABLE `contacts` (
 INSERT INTO `contacts` (`ContactID`, `FirstName`, `LastName`, `Phone`, `InterestedProduct`, `Message`, `CreatedAt`, `Status`) VALUES
 (1, 'Mai', 'Linh', '0905123456', 'Sen Thái', 'Tôi muốn đặt hoa cho lễ cúng ngày mai.', '2025-10-29 17:08:37', 'new'),
 (2, 'Tuấn', 'Anh', '0918123456', 'Sen Hồng', 'Hoa có giao buổi sáng được không?', '2025-10-29 17:08:37', 'new'),
-(3, 'string', 'string', 'string', 'string', 'string', '2025-10-29 12:32:58', 'new'),
 (4, 'dddddd', 'dddd', '0357595504', 'dd', '333333', '2025-11-02 04:08:32', 'new'),
 (5, 'Hoàng', 'dddd', '0357595504', 'dd', 'dddddwdc', '2025-11-03 03:08:00', 'new'),
 (6, 'dkodkddo', 'kdkdd', '0357595504', 'dddddd', 'dddd', '2025-11-11 13:02:55', 'new');
@@ -426,7 +425,43 @@ CREATE TABLE `orders` (
 INSERT INTO `orders` (`OrderID`, `CustomerName`, `Phone`, `Email`, `ProductID`, `Quantity`, `OrderDate`, `Status`, `CustomerAddress`, `TotalAmount`, `Unit`, `Note`) VALUES
 (1, 'Khách hàng', '0822774784', 'example@gmail.com', 9, 1, '2025-11-02 12:27:52', 'pending', NULL, 0.00, 'bó', NULL),
 (3, 'Khách hàng', '0822774784', 'example@gmail.com', 9, 1, '2025-11-10 03:00:40', 'pending', NULL, 0.00, 'bó', NULL),
-(5, 'Ngô Thị Bắp', '0946791515', 'tho@gmail.com', 24, 2, '2025-11-10 11:20:03', 'pending', NULL, 0.00, 'bó', NULL);
+(5, 'Ngô Thị Bắp', '0946791515', 'tho@gmail.com', 24, 2, '2025-11-10 11:20:03', 'pending', NULL, 0.00, 'bó', NULL),
+(6, 'Ngô Hoàng', '0946791515', 'linh@gmail.com', 89, 1, '2025-11-17 08:34:55', 'pending', NULL, 0.00, 'bó', NULL),
+(7, 'Ngô Hoànggggggggggggggggggggg', '0946791515', 'linh@gmail.com', 90, 1, '2025-11-17 09:02:28', 'pending', NULL, 0.00, 'bó', NULL),
+(8, 'gggggggggghjfgggggggggghjf', '0946791515', 'linh@gmail.com', 24, 1, '2025-11-17 09:09:43', 'pending', NULL, 0.00, 'bó', NULL),
+(9, 'ggggggghjf32ggggggghjf32', '0946791515', 'linh@gmail.com', 24, 1, '2025-11-17 09:26:06', 'completed', NULL, 29000.00, 'bó', NULL),
+(10, 'lê thị', '0946791515', 'linh@gmail.com', 14, 1, '2025-11-17 09:38:49', 'pending', NULL, 320000.00, 'bó', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `order_schedules`
+--
+
+CREATE TABLE `order_schedules` (
+  `ScheduleID` int(11) NOT NULL,
+  `OrderID` int(11) NOT NULL,
+  `ScheduledDate` date NOT NULL,
+  `ScheduledTime` time DEFAULT NULL,
+  `Status` varchar(20) DEFAULT 'pending',
+  `Note` text DEFAULT NULL,
+  `CreatedAt` datetime DEFAULT current_timestamp(),
+  `UpdatedAt` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `order_schedules`
+--
+
+INSERT INTO `order_schedules` (`ScheduleID`, `OrderID`, `ScheduledDate`, `ScheduledTime`, `Status`, `Note`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 1, '2025-11-03', '08:30:00', 'pending', 'Giao buổi sáng sớm', '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(2, 3, '2025-11-11', '14:00:00', 'confirmed', 'Khách yêu cầu gọi trước', '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(3, 5, '2025-11-12', '10:00:00', 'pending', 'Giao trong giờ hành chính', '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(4, 3, '2025-11-21', '15:12:00', 'pending', 'đ', '2025-11-17 07:13:33', '2025-11-17 07:13:33'),
+(5, 3, '2025-11-21', '16:15:00', 'pending', 'eeee', '2025-11-17 07:13:52', '2025-11-17 07:34:42'),
+(6, 5, '2025-11-21', '17:24:00', 'pending', NULL, '2025-11-17 07:22:33', '2025-11-17 07:22:33'),
+(7, 3, '2025-11-21', '17:24:00', 'confirmed', 'ddddd', '2025-11-17 07:27:04', '2025-11-17 09:26:36'),
+(8, 3, '2025-11-21', '14:29:00', 'pending', 'fff', '2025-11-17 07:27:56', '2025-11-17 07:34:33');
 
 -- --------------------------------------------------------
 
@@ -552,6 +587,36 @@ INSERT INTO `tags` (`TagID`, `TagName`) VALUES
 (6, 'Hoa nghệ thuật'),
 (8, 'Hoa tươi lâu');
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `transactions`
+--
+
+CREATE TABLE `transactions` (
+  `TransactionID` int(11) NOT NULL,
+  `Type` varchar(10) NOT NULL,
+  `Category` varchar(100) NOT NULL,
+  `Amount` decimal(15,0) NOT NULL,
+  `Description` text DEFAULT NULL,
+  `TransactionDate` date DEFAULT curdate(),
+  `OrderID` int(11) DEFAULT NULL,
+  `CreatedAt` datetime DEFAULT current_timestamp(),
+  `UpdatedAt` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `transactions`
+--
+
+INSERT INTO `transactions` (`TransactionID`, `Type`, `Category`, `Amount`, `Description`, `TransactionDate`, `OrderID`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 'income', 'Thanh toán đơn hàng', 180000, 'Khách thanh toán đơn hàng #1', '2025-11-03', 1, '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(2, 'income', 'Thanh toán đơn hàng', 180000, 'Khách thanh toán đơn hàng #3', '2025-11-19', 3, '2025-11-17 13:47:40', '2025-11-17 09:55:23'),
+(4, 'expense', 'Nhập hàng', 450000, 'Nhập hoa sen từ Đồng Tháp', '2025-11-01', NULL, '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(5, 'expense', 'Chi phí vận chuyển', 90000, 'Chi phí giao hàng tháng 11', '2025-11-05', NULL, '2025-11-17 13:47:40', '2025-11-17 13:47:40'),
+(6, 'expense', 'Phòng trọ', 10000, 'yyyy', '2025-11-04', 3, '2025-11-17 09:27:05', '2025-11-17 09:27:05'),
+(7, 'income', 'Phòng trọ', 10000, '', '2025-11-04', 3, '2025-11-17 09:43:05', '2025-11-17 09:43:05');
+
 --
 -- Indexes for dumped tables
 --
@@ -671,6 +736,15 @@ ALTER TABLE `orders`
   ADD KEY `ProductID` (`ProductID`);
 
 --
+-- Indexes for table `order_schedules`
+--
+ALTER TABLE `order_schedules`
+  ADD PRIMARY KEY (`ScheduleID`),
+  ADD KEY `idx_status_date` (`Status`,`ScheduledDate`),
+  ADD KEY `idx_schedule_date` (`ScheduledDate`),
+  ADD KEY `fk_schedule_order` (`OrderID`);
+
+--
 -- Indexes for table `products`
 --
 ALTER TABLE `products`
@@ -706,6 +780,15 @@ ALTER TABLE `reviews`
 ALTER TABLE `tags`
   ADD PRIMARY KEY (`TagID`),
   ADD UNIQUE KEY `TagName` (`TagName`);
+
+--
+-- Indexes for table `transactions`
+--
+ALTER TABLE `transactions`
+  ADD PRIMARY KEY (`TransactionID`),
+  ADD KEY `idx_type_date` (`Type`,`TransactionDate`),
+  ADD KEY `idx_transaction_date` (`TransactionDate`),
+  ADD KEY `fk_transaction_order` (`OrderID`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -799,7 +882,13 @@ ALTER TABLE `news_categories`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `OrderID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `OrderID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT for table `order_schedules`
+--
+ALTER TABLE `order_schedules`
+  MODIFY `ScheduleID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -830,6 +919,12 @@ ALTER TABLE `reviews`
 --
 ALTER TABLE `tags`
   MODIFY `TagID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+
+--
+-- AUTO_INCREMENT for table `transactions`
+--
+ALTER TABLE `transactions`
+  MODIFY `TransactionID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Constraints for dumped tables
@@ -889,6 +984,12 @@ ALTER TABLE `orders`
   ADD CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`ProductID`) REFERENCES `products` (`ProductID`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `order_schedules`
+--
+ALTER TABLE `order_schedules`
+  ADD CONSTRAINT `fk_schedule_order` FOREIGN KEY (`OrderID`) REFERENCES `orders` (`OrderID`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `products`
 --
 ALTER TABLE `products`
@@ -906,6 +1007,12 @@ ALTER TABLE `product_tags`
 --
 ALTER TABLE `reviews`
   ADD CONSTRAINT `reviews_ibfk_1` FOREIGN KEY (`ProductID`) REFERENCES `products` (`ProductID`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `transactions`
+--
+ALTER TABLE `transactions`
+  ADD CONSTRAINT `fk_transaction_order` FOREIGN KEY (`OrderID`) REFERENCES `orders` (`OrderID`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
