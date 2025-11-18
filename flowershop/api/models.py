@@ -279,3 +279,77 @@ class Admin(models.Model):
         verbose_name = "Quản trị viên"
         verbose_name_plural = "Quản trị viên"
 
+# api/finance_models.py
+from django.db import models
+from django.utils import timezone
+from .models import Order  # Import Order từ models.py chính
+
+
+class Transaction(models.Model):
+    TYPE_CHOICES = [
+        ('income', 'Thu nhập'),
+        ('expense', 'Chi phí'),
+    ]
+
+    TransactionID = models.AutoField(primary_key=True, db_column='TransactionID')
+    Type = models.CharField(max_length=10, choices=TYPE_CHOICES, db_column='Type')
+    Category = models.CharField(max_length=100, db_column='Category')
+    Amount = models.DecimalField(max_digits=15, decimal_places=0, db_column='Amount')
+    Description = models.TextField(blank=True, null=True, db_column='Description')
+    TransactionDate = models.DateField(default=timezone.now, db_column='TransactionDate')
+    OrderID = models.ForeignKey(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='OrderID',
+        related_name='transactions'
+    )
+    CreatedAt = models.DateTimeField(auto_now_add=True, db_column='CreatedAt')
+    UpdatedAt = models.DateTimeField(auto_now=True, db_column='UpdatedAt')
+
+    class Meta:
+        db_table = 'transactions'
+        ordering = ['-TransactionDate', '-CreatedAt']
+        indexes = [
+            models.Index(fields=['Type', 'TransactionDate'], name='idx_type_date'),
+            models.Index(fields=['TransactionDate'], name='idx_transaction_date'),
+        ]
+
+    def __str__(self):
+        return f"{self.get_Type_display()} - {self.Category} - {self.Amount}"
+
+
+class OrderSchedule(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Chờ xử lý'),
+        ('confirmed', 'Đã xác nhận'),
+        ('completed', 'Hoàn thành'),
+        ('cancelled', 'Đã hủy'),
+    ]
+
+    ScheduleID = models.AutoField(primary_key=True, db_column='ScheduleID')
+    OrderID = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        db_column='OrderID',
+        related_name='schedules'
+    )
+    ScheduledDate = models.DateField(db_column='ScheduledDate')
+    ScheduledTime = models.TimeField(null=True, blank=True, db_column='ScheduledTime')
+    Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_column='Status')
+    Note = models.TextField(blank=True, null=True, db_column='Note')
+    CreatedAt = models.DateTimeField(auto_now_add=True, db_column='CreatedAt')
+    UpdatedAt = models.DateTimeField(auto_now=True, db_column='UpdatedAt')
+
+    class Meta:
+        db_table = 'order_schedules'
+        ordering = ['-ScheduledDate', '-ScheduledTime']
+        indexes = [
+            models.Index(fields=['Status', 'ScheduledDate'], name='idx_status_date'),
+            models.Index(fields=['ScheduledDate'], name='idx_schedule_date'),
+        ]
+
+    def __str__(self):
+        time = self.ScheduledTime.strftime('%H:%M') if self.ScheduledTime else ''
+        return f"ORD-{str(self.OrderID.OrderID).zfill(5)} - {self.ScheduledDate} {time}"

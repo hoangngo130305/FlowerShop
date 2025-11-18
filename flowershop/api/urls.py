@@ -17,7 +17,8 @@ router.register(r'product-categories', views.ProductCategoryViewSet, basename='p
 router.register(r'news-categories', views.NewsCategoryViewSet)
 router.register(r'admins', views.AdminViewSet, basename='admin')
 router.register(r'categories', views.ProductCategoryViewSet, basename='categories')
-
+router.register(r'transactions', views.TransactionViewSet, basename='transactions')
+router.register(r'order-schedules', views.OrderScheduleViewSet, basename='order-schedules')
 urlpatterns = [
     path('', include(router.urls)),
 

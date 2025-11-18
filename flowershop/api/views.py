@@ -8,13 +8,13 @@ from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from .models import (
     Product, Tag, ProductTag, Review, Author, News, Contact,
-    ProductCategory, NewsCategory, Admin, Order
+    ProductCategory, NewsCategory, Admin, Order, Transaction, OrderSchedule
 )
 from .serializers import (
     ProductSerializer, TagSerializer, ProductTagSerializer,
     ReviewSerializer, AuthorSerializer, NewsSerializer, ContactSerializer,
     ProductCategorySerializer, NewsCategorySerializer, AdminSerializer,
-    OrderSerializer
+    OrderSerializer, TransactionSerializer, OrderScheduleSerializer
 )
 import traceback
 
@@ -452,8 +452,30 @@ class OrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # LẤY PRODUCT ID AN TOÀN (hỗ trợ cả gửi object và gửi ID)
+        product_input = serializer.validated_data.get('Product')
+        if isinstance(product_input, int):
+            product_id = product_input
+        elif hasattr(product_input, 'ProductID'):
+            product_id = product_input.ProductID
+        else:
+            product_id = int(product_input)  # fallback
+
+        quantity = serializer.validated_data.get('Quantity', 1)
+
+        try:
+            product = Product.objects.get(ProductID=product_id)
+            total_amount = product.Price * quantity
+            serializer.validated_data['TotalAmount'] = total_amount
+        except Product.DoesNotExist:
+            serializer.validated_data['TotalAmount'] = 0
+        except Exception as e:
+            return Response({"error": f"Lỗi tính tiền: {str(e)}"}, status=400)
+
         self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 # ----------------------------
@@ -480,3 +502,80 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Admin.objects.select_related('user').all()
     serializer_class = AdminSerializer
     permission_classes = [permissions.IsAdminUser]
+
+    # api/views.py (chèn vào cuối file, trước </DOCUMENT> nếu có)
+
+
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db.models import Sum, Count
+from django.utils import timezone
+from datetime import datetime
+# ==========================
+# TRANSACTION VIEWSET
+# ==========================
+class TransactionViewSet(viewsets.ModelViewSet):
+    queryset = Transaction.objects.all().order_by('-TransactionDate', '-CreatedAt')
+    serializer_class = TransactionSerializer
+
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        end_date = request.query_params.get('end_date', timezone.now().date())
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        start_date = request.query_params.get('start_date')
+        if start_date:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        else:
+            start_date = end_date.replace(day=1)
+
+        transactions = Transaction.objects.filter(TransactionDate__range=[start_date, end_date])
+
+        income = transactions.filter(Type='income').aggregate(
+            total=Sum('Amount'), count=Count('TransactionID')
+        )
+        expense = transactions.filter(Type='expense').aggregate(
+            total=Sum('Amount'), count=Count('TransactionID')
+        )
+
+        data = {
+            'total_income': income['total'] or 0,
+            'total_expense': expense['total'] or 0,
+            'net_profit': (income['total'] or 0) - (expense['total'] or 0),
+            'income_count': income['count'] or 0,
+            'expense_count': expense['count'] or 0,
+            'period_start': start_date,
+            'period_end': end_date,
+        }
+
+        return Response({"success": True, "data": data})
+
+
+# ==========================
+# ORDER SCHEDULE VIEWSET
+# ==========================
+class OrderScheduleViewSet(viewsets.ModelViewSet):
+    queryset = OrderSchedule.objects.select_related('OrderID__Product').all()
+    serializer_class = OrderScheduleSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status = self.request.query_params.get('status')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+
+        if status:
+            queryset = queryset.filter(Status=status)
+        if start_date and end_date:
+            queryset = queryset.filter(ScheduledDate__range=[start_date, end_date])
+
+        return queryset.order_by('-ScheduledDate', '-ScheduledTime')
+
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        today = timezone.now().date()
+        schedules = self.get_queryset().filter(ScheduledDate=today)
+        serializer = self.get_serializer(schedules, many=True)
+        return Response({"success": True, "count": schedules.count(), "data": serializer.data})

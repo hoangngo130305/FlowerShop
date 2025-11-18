@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from .models import (
     Tag, Product, ProductTag,
-    Review, Author, News, Contact, Order
+    Review, Author, News, Contact, Order, Transaction, OrderSchedule
 )
 from .models import ProductCategory, NewsCategory, Admin
 from django.templatetags.static import static
@@ -152,3 +152,59 @@ class AdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Admin
         fields = '__all__'
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+    order_number = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Transaction
+        fields = [
+            'TransactionID', 'Type', 'Category', 'Amount', 'Description',
+            'TransactionDate', 'OrderID', 'order_number', 'customer_name',
+            'product_name', 'CreatedAt', 'UpdatedAt'
+        ]
+        read_only_fields = ['TransactionID', 'CreatedAt', 'UpdatedAt']
+
+    def get_order_number(self, obj):
+        return f"ORD-{str(obj.OrderID.OrderID).zfill(5)}" if obj.OrderID else None
+
+    def get_customer_name(self, obj):
+        return obj.OrderID.CustomerName if obj.OrderID else None
+
+    def get_product_name(self, obj):
+        return obj.OrderID.Product.Name if obj.OrderID and obj.OrderID.Product else None
+
+
+class OrderScheduleSerializer(serializers.ModelSerializer):
+    order_number = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderSchedule
+        fields = [
+            'ScheduleID', 'OrderID', 'order_number', 'customer_name', 'customer_phone',
+            'product_name', 'total_amount', 'ScheduledDate', 'ScheduledTime',
+            'Status', 'Note', 'CreatedAt', 'UpdatedAt'
+        ]
+        read_only_fields = ['ScheduleID', 'CreatedAt', 'UpdatedAt']
+
+    def get_order_number(self, obj):
+        return f"ORD-{str(obj.OrderID.OrderID).zfill(5)}"
+
+    def get_customer_name(self, obj):
+        return obj.OrderID.CustomerName
+
+    def get_customer_phone(self, obj):
+        return obj.OrderID.Phone
+
+    def get_product_name(self, obj):
+        return obj.OrderID.Product.Name if obj.OrderID.Product else None
+
+    def get_total_amount(self, obj):
+        return float(obj.OrderID.TotalAmount)

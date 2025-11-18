@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-r8+^fdsoc4f#1v4p9tl@kzfm6#426aax-n2v4%qbl6ls%)0ys@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 CORS_ALLOW_ALL_ORIGINS = True  # ✅ Cho phép tất cả domain gọi API
 
 

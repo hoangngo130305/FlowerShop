@@ -31,7 +31,7 @@ interface ProductsSectionProps {
   onProductClick: (product: any) => void;
 }
 
-const API_BASE_URL = "http://14.224.210.210:8000/apii";
+const API_BASE_URL = "http://14.224.210.210:8000/api";
 
 export default function ProductsSectionAPI({
   onProductClick,

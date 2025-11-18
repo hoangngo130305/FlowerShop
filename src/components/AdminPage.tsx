@@ -52,6 +52,7 @@ import {
   TrendingUp,
   Camera,
   FolderTree,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 import {
@@ -81,6 +82,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "./ui/dropdown-menu";
 import { ScrollArea } from "./ui/scroll-area";
+import { FinanceManagement } from "./FinanceManagement";
 
 const API_BASE = "http://14.224.210.210:8000/api";
 
@@ -159,15 +161,12 @@ interface Order {
   CustomerAddress?: string;
   Quantity: number;
   Unit: string;
-  TotalAmount: number;
+  TotalAmount: string;
   Note?: string;
   Status: "pending" | "confirmed" | "shipping" | "completed" | "cancelled";
   OrderDate: string;
-  Product?: {
-    ProductID: number;
-    Name: string;
-    Price: number;
-  };
+  ProductName: string; // THÊM DÒNG NÀY
+  Product: number;
 }
 
 interface Category {
@@ -338,10 +337,16 @@ export function AdminPage({ onLogout }: AdminPageProps) {
     if (!files) return;
 
     const newFiles = Array.from(files);
-    console.log("📸 handleProductMediaChange - New files:", newFiles.map(f => f.name));
+    console.log(
+      "📸 handleProductMediaChange - New files:",
+      newFiles.map((f) => f.name)
+    );
     setProductMediaFiles((prev) => {
       const updated = [...prev, ...newFiles];
-      console.log("📸 Updated productMediaFiles state:", updated.map(f => f.name));
+      console.log(
+        "📸 Updated productMediaFiles state:",
+        updated.map((f) => f.name)
+      );
       return updated;
     });
 
@@ -393,7 +398,12 @@ export function AdminPage({ onLogout }: AdminPageProps) {
 
     // Append file từ state
     productMediaFiles.forEach((file, index) => {
-      console.log(`✅ Appending file ${index}:`, file.name, file.type, file.size);
+      console.log(
+        `✅ Appending file ${index}:`,
+        file.name,
+        file.type,
+        file.size
+      );
       formData.append("media_files", file);
     });
 
@@ -404,7 +414,9 @@ export function AdminPage({ onLogout }: AdminPageProps) {
 
     // Append các field cần thiết (nếu không có trong form)
     if (!formData.has("Name")) {
-      const nameElement = form.elements.namedItem("name") as HTMLInputElement | null;
+      const nameElement = form.elements.namedItem(
+        "name"
+      ) as HTMLInputElement | null;
       if (nameElement && nameElement.value) {
         formData.append("Name", nameElement.value);
       }
@@ -479,23 +491,47 @@ export function AdminPage({ onLogout }: AdminPageProps) {
   const handleSaveNews = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    
+
     // ✅ SỬ DỤNG FormData THAY VÌ JSON (giống Product)
     const formData = new FormData();
-    
+
     // Append text fields
-    formData.append("Title", (form.elements.namedItem("title") as HTMLInputElement)?.value || "");
-    formData.append("Content", (form.elements.namedItem("content") as HTMLTextAreaElement)?.value || "");
-    formData.append("Category", (form.elements.namedItem("category") as HTMLInputElement)?.value || "Tin tức");
-    formData.append("Tags", (form.elements.namedItem("tags") as HTMLInputElement)?.value || "");
-    
+    formData.append(
+      "Title",
+      (form.elements.namedItem("title") as HTMLInputElement)?.value || ""
+    );
+    formData.append(
+      "Content",
+      (form.elements.namedItem("content") as HTMLTextAreaElement)?.value || ""
+    );
+    formData.append(
+      "Category",
+      (form.elements.namedItem("category") as HTMLInputElement)?.value ||
+        "Tin tức"
+    );
+    formData.append(
+      "Tags",
+      (form.elements.namedItem("tags") as HTMLInputElement)?.value || ""
+    );
+
     // ✅ Append IMAGE FILE (nếu có)
     if (newsImageFile) {
       formData.append("Image", newsImageFile);
-      console.log("📸 News Image File:", newsImageFile.name, newsImageFile.type, newsImageFile.size);
+      console.log(
+        "📸 News Image File:",
+        newsImageFile.name,
+        newsImageFile.type,
+        newsImageFile.size
+      );
     }
 
-    console.log("📦 News FormData entries:", Array.from(formData.entries()).map(([k, v]) => [k, v instanceof File ? `File: ${v.name}` : v]));
+    console.log(
+      "📦 News FormData entries:",
+      Array.from(formData.entries()).map(([k, v]) => [
+        k,
+        v instanceof File ? `File: ${v.name}` : v,
+      ])
+    );
 
     try {
       if (editingNews) {
@@ -539,7 +575,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
       toast.error(`Lỗi: ${error.message}`);
     }
   };
-  
+
   // ✅ Helper để đóng dialog và reset News
   const closeNewsDialog = () => {
     setIsNewsDialogOpen(false);
@@ -957,7 +993,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           <div className="bg-white rounded-lg border p-2">
             <TabsList
               className={`grid h-auto w-full ${
-                isMobile ? "grid-cols-4 gap-1" : "grid-cols-8 gap-2"
+                isMobile ? "grid-cols-5 gap-1" : "grid-cols-9 gap-2"
               }`}
             >
               <TabsTrigger
@@ -1016,6 +1052,13 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                 <MessageSquare className={isMobile ? "w-3 h-3" : "w-4 h-4"} />
                 {!isMobile ? "Liên hệ" : "LH"}
               </TabsTrigger>
+              <TabsTrigger
+                value="finance"
+                className={isMobile ? "gap-1 px-2 py-2 text-xs" : "gap-2"}
+              >
+                <Wallet className={isMobile ? "w-3 h-3" : "w-4 h-4"} />
+                {!isMobile ? "Thu chi" : "TC"}
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -1050,19 +1093,21 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                         <TableRow>
                           <TableCell
                             colSpan={9}
-                            className="text-center text-muted-foreground"
+                            className="text-center text-muted-foreground py-8"
                           >
-                            Chưa có đơn hàng nào
+                            Chưa có đơn hàng nào cần xử lý
                           </TableCell>
                         </TableRow>
                       ) : (
                         orders
                           .filter((o) => o.Status !== "completed")
+                          .sort((a, b) => b.OrderID - a.OrderID) // mới nhất lên đầu
                           .map((order) => (
                             <TableRow key={order.OrderID}>
-                              <TableCell className="font-mono">
-                                #{order.OrderID}
+                              <TableCell className="font-mono font-bold">
+                                #{String(order.OrderID).padStart(3, "0")}
                               </TableCell>
+
                               <TableCell>
                                 <div className="font-medium">
                                   {order.CustomerName}
@@ -1073,27 +1118,33 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                                   </div>
                                 )}
                               </TableCell>
+
                               <TableCell>{order.Phone}</TableCell>
+
+                              {/* SỬA CHỖ NÀY: DÙNG ProductName THAY VÌ Product?.Name */}
                               <TableCell>
                                 <div className="font-medium">
-                                  {order.Product?.Name || "N/A"}
+                                  {order.ProductName || "Không xác định"}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {(order.Product?.Price || 0).toLocaleString(
-                                    "vi-VN"
-                                  )}
-                                  đ
-                                </div>
+                                {/* Nếu muốn hiển thị giá sản phẩm gốc (tùy chọn) */}
+                                {/* <div className="text-xs text-muted-foreground">
+              {order.ProductPrice?.toLocaleString("vi-VN")}đ
+            </div> */}
                               </TableCell>
+
                               <TableCell>
                                 {order.Quantity} {order.Unit}
                               </TableCell>
-                              <TableCell className="font-semibold">
+
+                              {/* DÙNG TotalAmount ĐÃ CÓ SẴN TỪ BACKEND */}
+                              <TableCell className="font-bold text-green-600">
                                 {new Intl.NumberFormat("vi-VN", {
                                   style: "currency",
                                   currency: "VND",
-                                }).format(order.TotalAmount || 0)}
+                                }).format(Number(order.TotalAmount || 0))}
                               </TableCell>
+
+                              {/* TRẠNG THÁI - GIỮ NGUYÊN, ĐẸP RỒI */}
                               <TableCell>
                                 <Select
                                   value={order.Status}
@@ -1109,53 +1160,40 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="pending">
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-yellow-100 text-yellow-800"
-                                      >
+                                      <Badge variant="secondary">
                                         Chờ xử lý
                                       </Badge>
                                     </SelectItem>
                                     <SelectItem value="confirmed">
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-blue-100 text-blue-800"
-                                      >
+                                      <Badge className="bg-blue-100 text-blue-800">
                                         Đã xác nhận
                                       </Badge>
                                     </SelectItem>
                                     <SelectItem value="shipping">
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-purple-100 text-purple-800"
-                                      >
+                                      <Badge className="bg-purple-100 text-purple-800">
                                         Đang giao
                                       </Badge>
                                     </SelectItem>
                                     <SelectItem value="completed">
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-green-100 text-green-800"
-                                      >
+                                      <Badge className="bg-green-100 text-green-800">
                                         Hoàn thành
                                       </Badge>
                                     </SelectItem>
                                     <SelectItem value="cancelled">
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-red-100 text-red-800"
-                                      >
+                                      <Badge variant="destructive">
                                         Đã hủy
                                       </Badge>
                                     </SelectItem>
                                   </SelectContent>
                                 </Select>
                               </TableCell>
+
                               <TableCell className="text-sm">
                                 {new Date(order.OrderDate).toLocaleDateString(
                                   "vi-VN"
                                 )}
                               </TableCell>
+
                               <TableCell>
                                 <Button
                                   variant="destructive"
@@ -1235,7 +1273,13 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                               <TableCell>{order.Phone}</TableCell>
                               <TableCell>
                                 <div className="font-medium">
-                                  {order.Product?.Name || "N/A"}
+                                  {order.ProductName || "Không xác định"}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {Number(
+                                    order.TotalAmount || 0
+                                  ).toLocaleString("vi-VN")}{" "}
+                                  ₫
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1245,7 +1289,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                                 {new Intl.NumberFormat("vi-VN", {
                                   style: "currency",
                                   currency: "VND",
-                                }).format(order.TotalAmount || 0)}
+                                }).format(Number(order.TotalAmount || 0))}
                               </TableCell>
                               <TableCell>
                                 <Badge
@@ -2223,6 +2267,11 @@ export function AdminPage({ onLogout }: AdminPageProps) {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Finance Management Tab */}
+          <TabsContent value="finance">
+            <FinanceManagement orders={orders} />
           </TabsContent>
         </Tabs>
       </div>

@@ -109,6 +109,31 @@ export interface Order {
   status: "pending" | "confirmed" | "shipping" | "completed" | "cancelled";
 }
 
+// ✅ NEW: Transaction & Schedule types for Finance Management
+export interface Transaction {
+  id: string;
+  type: "income" | "expense";
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  orderId?: string;
+  createdAt?: string;
+}
+
+export interface OrderSchedule {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  productName: string;
+  scheduledDate: string;
+  scheduledTime?: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  note?: string;
+  createdAt?: string;
+}
+
 interface DataContextType {
   products: Product[];
   setProducts: (products: Product[]) => void;
@@ -124,6 +149,13 @@ interface DataContextType {
   setCategories: (categories: Category[]) => void;
   newsCategories: Category[];
   setNewsCategories: (categories: Category[]) => void;
+  
+  // ✅ NEW: Finance Management
+  transactions: Transaction[];
+  setTransactions: (transactions: Transaction[]) => void;
+  orderSchedules: OrderSchedule[];
+  setOrderSchedules: (schedules: OrderSchedule[]) => void;
+  
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (id: string, product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
@@ -145,6 +177,15 @@ interface DataContextType {
   addNewsCategory: (category: Category) => Promise<void>;
   updateNewsCategory: (id: string, category: Category) => Promise<void>;
   deleteNewsCategory: (id: string) => Promise<void>;
+  
+  // ✅ NEW: Finance Management CRUD
+  addTransaction: (transaction: Transaction) => Promise<void>;
+  updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  addOrderSchedule: (schedule: OrderSchedule) => Promise<void>;
+  updateOrderSchedule: (id: string, schedule: Partial<OrderSchedule>) => Promise<void>;
+  deleteOrderSchedule: (id: string) => Promise<void>;
+  
   isLoading: boolean;
   error: string | null;
   refreshData: () => Promise<void>;
@@ -164,6 +205,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [orders, setOrdersState] = useState<Order[]>([]);
   const [categories, setCategoriesState] = useState<Category[]>([]);
   const [newsCategories, setNewsCategoriesState] = useState<Category[]>([]);
+  
+  // ✅ NEW: Finance Management
+  const [transactions, setTransactionsState] = useState<Transaction[]>([]);
+  const [orderSchedules, setOrderSchedulesState] = useState<OrderSchedule[]>([]);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -479,6 +525,72 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return [];
     }
   };
+  
+  // ✅ NEW: FETCH TRANSACTIONS
+  const fetchTransactions = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/transactions/`);
+      if (!res.ok)
+        throw new Error(`Lỗi ${res.status}: Không thể tải giao dịch`);
+      const response = await res.json();
+      
+      // Handle both array and wrapped response
+      const data = Array.isArray(response) ? response : (response.data || []);
+
+      const mappedTransactions: Transaction[] = data.map((t: any) => ({
+        id: String(t.TransactionID),
+        type: t.Type?.toLowerCase() || "income",
+        category: t.Category || "Khác",
+        amount: parseFloat(t.Amount) || 0,
+        description: t.Description || "",
+        date: t.TransactionDate?.split('T')[0] || new Date().toISOString().split("T")[0],
+        orderId: t.OrderID ? String(t.OrderID) : undefined,
+        createdAt: t.CreatedAt?.split('T')[0],
+      }));
+
+      console.log('✅ Fetched Transactions:', mappedTransactions);
+      setTransactionsState(mappedTransactions);
+      return mappedTransactions;
+    } catch (err: any) {
+      console.error("❌ Fetch Transactions Error:", err);
+      setTransactionsState([]);
+      return [];
+    }
+  };
+  
+  // ✅ NEW: FETCH ORDER SCHEDULES
+  const fetchOrderSchedules = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/order-schedules/`);
+      if (!res.ok)
+        throw new Error(`Lỗi ${res.status}: Không thể tải lịch trình đơn hàng`);
+      const response = await res.json();
+      
+      // Handle both array and wrapped response
+      const data = Array.isArray(response) ? response : (response.data || []);
+
+      const mappedSchedules: OrderSchedule[] = data.map((s: any) => ({
+        id: String(s.ScheduleID),
+        orderId: String(s.OrderID),
+        orderNumber: s.order_number || `ORD-${String(s.OrderID).padStart(5, "0")}`,
+        customerName: s.customer_name || "",
+        productName: s.product_name || "",
+        scheduledDate: s.ScheduledDate?.split('T')[0] || new Date().toISOString().split("T")[0],
+        scheduledTime: s.ScheduledTime,
+        status: s.Status?.toLowerCase() || "pending",
+        note: s.Note || "",
+        createdAt: s.CreatedAt?.split('T')[0],
+      }));
+
+      console.log('✅ Fetched Order Schedules:', mappedSchedules);
+      setOrderSchedulesState(mappedSchedules);
+      return mappedSchedules;
+    } catch (err: any) {
+      console.error("❌ Fetch Order Schedules Error:", err);
+      setOrderSchedulesState([]);
+      return [];
+    }
+  };
 
   // FETCH ALL DATA
   const fetchAllData = async () => {
@@ -494,6 +606,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchOrders(),
         fetchProductCategories(),
         fetchNewsCategories(),
+        
+        // ✅ NEW: Fetch Finance Management Data
+        fetchTransactions(),
+        fetchOrderSchedules(),
       ]);
       setIsLoading(false);
     } catch (err: any) {
@@ -945,6 +1061,127 @@ export function DataProvider({ children }: { children: ReactNode }) {
       throw err;
     }
   };
+  
+  // ✅ NEW: FINANCE MANAGEMENT CRUD
+  const setTransactions = (newTransactions: Transaction[]) => {
+    setTransactionsState(newTransactions);
+  };
+  
+  const addTransaction = async (transaction: Transaction) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/transactions/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Type: transaction.type,
+          Category: transaction.category,
+          Amount: transaction.amount,
+          Description: transaction.description,
+          TransactionDate: transaction.date,
+          OrderID: transaction.orderId,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể thêm giao dịch");
+      await fetchTransactions();
+    } catch (err: any) {
+      console.error("❌ Add Transaction Error:", err);
+      throw err;
+    }
+  };
+  
+  const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/transactions/${id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Type: transaction.type,
+          Category: transaction.category,
+          Amount: transaction.amount,
+          Description: transaction.description,
+          TransactionDate: transaction.date,
+          OrderID: transaction.orderId,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể cập nhật giao dịch");
+      await fetchTransactions();
+    } catch (err: any) {
+      console.error("❌ Update Transaction Error:", err);
+      throw err;
+    }
+  };
+  
+  const deleteTransaction = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/transactions/${id}/`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Không thể xóa giao dịch");
+      await fetchTransactions();
+    } catch (err: any) {
+      console.error("❌ Delete Transaction Error:", err);
+      throw err;
+    }
+  };
+  
+  const setOrderSchedules = (newSchedules: OrderSchedule[]) => {
+    setOrderSchedulesState(newSchedules);
+  };
+  
+  const addOrderSchedule = async (schedule: OrderSchedule) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/order-schedules/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          OrderID: schedule.orderId,
+          ScheduledDate: schedule.scheduledDate,
+          ScheduledTime: schedule.scheduledTime,
+          Status: schedule.status,
+          Note: schedule.note,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể thêm lịch trình đơn hàng");
+      await fetchOrderSchedules();
+    } catch (err: any) {
+      console.error("❌ Add Order Schedule Error:", err);
+      throw err;
+    }
+  };
+  
+  const updateOrderSchedule = async (id: string, schedule: Partial<OrderSchedule>) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/order-schedules/${id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          OrderID: schedule.orderId,
+          ScheduledDate: schedule.scheduledDate,
+          ScheduledTime: schedule.scheduledTime,
+          Status: schedule.status,
+          Note: schedule.note,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể cập nhật lịch trình đơn hàng");
+      await fetchOrderSchedules();
+    } catch (err: any) {
+      console.error("❌ Update Order Schedule Error:", err);
+      throw err;
+    }
+  };
+  
+  const deleteOrderSchedule = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/order-schedules/${id}/`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Không thể xóa lịch trình đơn hàng");
+      await fetchOrderSchedules();
+    } catch (err: any) {
+      console.error("❌ Delete Order Schedule Error:", err);
+      throw err;
+    }
+  };
 
   // ===========================================
   // 🎁 CONTEXT VALUE
@@ -965,6 +1202,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCategories,
     newsCategories,
     setNewsCategories,
+    
+    // ✅ NEW: Finance Management
+    transactions,
+    setTransactions,
+    orderSchedules,
+    setOrderSchedules,
+    
     addProduct,
     updateProduct,
     deleteProduct,
@@ -986,6 +1230,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addNewsCategory,
     updateNewsCategory,
     deleteNewsCategory,
+    
+    // ✅ NEW: Finance Management CRUD
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+    addOrderSchedule,
+    updateOrderSchedule,
+    deleteOrderSchedule,
+    
     isLoading,
     error,
     refreshData,
